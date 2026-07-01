@@ -3,8 +3,8 @@ const astroids = @import("astroids");
 const rl = @import("raylib");
 
 const Vec2_i32 = struct {
-    x: i32,
-    y: i32,
+    x: f32,
+    y: f32,
 };
 
 const Circle = struct {
@@ -20,8 +20,8 @@ const Triangle = struct {
 };
 
 const SpaceShip = struct {
-    PosX: i32,
-    PosY: i32,
+    PosX: f32,
+    PosY: f32,
     Rot: f32,
     MaxVelocity: f32,
     CurrentVelocity: f32,
@@ -59,33 +59,33 @@ const SpaceShip = struct {
         const back_r_dy = (local_back_r_x * sin_rot) + (local_back_r_y * cos_rot);
 
         const tip = Vec2_i32{
-            .x = self.PosX + @as(i32, @round(tip_dx)),
-            .y = self.PosY + @as(i32, @round(tip_dy)),
+            .x = self.PosX + tip_dx,
+            .y = self.PosY + tip_dy,
         };
 
         const bottom_l = Vec2_i32{
-            .x = self.PosX + @as(i32, @round(bl_dx)),
-            .y = self.PosY + @as(i32, @round(bl_dy)),
+            .x = self.PosX + bl_dx,
+            .y = self.PosY + bl_dy,
         };
 
         const bottom_r = Vec2_i32{
-            .x = self.PosX + @as(i32, @round(br_dx)),
-            .y = self.PosY + @as(i32, @round(br_dy)),
+            .x = self.PosX + br_dx,
+            .y = self.PosY + br_dy,
         };
 
         const back_l = Vec2_i32{
-            .x = self.PosX + @as(i32, @round(back_l_dx)),
-            .y = self.PosY + @as(i32, @round(back_l_dy)),
+            .x = self.PosX + back_l_dx,
+            .y = self.PosY + back_l_dy,
         };
 
         const back_r = Vec2_i32{
-            .x = self.PosX + @as(i32, @round(back_r_dx)),
-            .y = self.PosY + @as(i32, @round(back_r_dy)),
+            .x = self.PosX + back_r_dx,
+            .y = self.PosY + back_r_dy,
         };
 
-        rl.drawLine(tip.x, tip.y, bottom_l.x, bottom_l.y, .white);
-        rl.drawLine(tip.x, tip.y, bottom_r.x, bottom_r.y, .white);
-        rl.drawLine(back_l.x, back_l.y, back_r.x, back_r.y, .white);
+        rl.drawLine(@round(tip.x), @round(tip.y), @round(bottom_l.x), @round(bottom_l.y), .white);
+        rl.drawLine(@round(tip.x), @round(tip.y), @round(bottom_r.x), @round(bottom_r.y), .white);
+        rl.drawLine(@round(back_l.x), @round(back_l.y), @round(back_r.x), @round(back_r.y), .white);
     }
 
     fn drawBoosters(self: SpaceShip) void {
@@ -110,22 +110,22 @@ const SpaceShip = struct {
         const back_r_dy = (local_back_r_x * sin_rot) + (local_back_r_y * cos_rot);
 
         const back_l = Vec2_i32{
-            .x = self.PosX + @as(i32, @round(back_l_dx)),
-            .y = self.PosY + @as(i32, @round(back_l_dy)),
+            .x = self.PosX + back_l_dx,
+            .y = self.PosY + back_l_dy,
         };
 
         const back_r = Vec2_i32{
-            .x = self.PosX + @as(i32, @round(back_r_dx)),
-            .y = self.PosY + @as(i32, @round(back_r_dy)),
+            .x = self.PosX + back_r_dx,
+            .y = self.PosY + back_r_dy,
         };
 
         const tip = Vec2_i32{
-            .x = self.PosX + @as(i32, @round(tip_dx)),
-            .y = self.PosY + @as(i32, @round(tip_dy)),
+            .x = self.PosX + tip_dx,
+            .y = self.PosY + tip_dy,
         };
 
-        rl.drawLine(back_l.x, back_l.y, tip.x, tip.y, .white);
-        rl.drawLine(tip.x, tip.y, back_r.x, back_r.y, .white);
+        rl.drawLine(@round(back_l.x), @round(back_l.y), @round(tip.x), @round(tip.y), .white);
+        rl.drawLine(@round(tip.x), @round(tip.y), @round(back_r.x), @round(back_r.y), .white);
     }
 
     fn rotate(self: *SpaceShip, direction: []const u8) void {
@@ -152,8 +152,8 @@ const SpaceShip = struct {
         const dx = sin_rot * self.CurrentVelocity;
         const dy = cos_rot * self.CurrentVelocity;
 
-        self.PosX += @as(i32, @round(dx));
-        self.PosY -= @as(i32, @round(dy));
+        self.PosX += dx;
+        self.PosY -= dy;
     }
 
     fn deAccelerate(self: *SpaceShip) void {
@@ -168,10 +168,18 @@ const SpaceShip = struct {
             const dx = sin_rot * self.CurrentVelocity;
             const dy = cos_rot * self.CurrentVelocity;
 
-            self.PosX += @as(i32, @round(dx));
-            self.PosY -= @as(i32, @round(dy));
+            self.PosX += dx;
+            self.PosY -= dy;
         }
     }
+
+    fn shoot() void {}
+};
+
+const Star = struct {
+    x: i32,
+    y: i32,
+    size: f32,
 };
 
 pub fn main() !void {
@@ -199,6 +207,15 @@ pub fn main() !void {
         .Acceleration = 1.05,
     };
 
+    const MAX_STARS = 50;
+    var stars: [MAX_STARS]Star = undefined;
+    for (&stars) |*star| {
+        star.x = rl.getRandomValue(0, screenWidth);
+        star.y = rl.getRandomValue(0, screenHeight);
+        const rand: f32 = @floatFromInt(rl.getRandomValue(8, 12));
+        star.size = rand / 10;
+    }
+
     while (!rl.windowShouldClose()) {
         defer _ = arena.reset(.retain_capacity);
 
@@ -206,6 +223,9 @@ pub fn main() !void {
         defer rl.endDrawing();
         fps = rl.getFPS();
         rl.clearBackground(.black);
+        for (stars) |star| {
+            rl.drawCircle(star.x, star.y, star.size, .white);
+        }
 
         if (rl.isKeyDown(.right)) {
             spaceship.rotate("clockWise");
