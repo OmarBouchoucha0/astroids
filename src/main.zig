@@ -2,6 +2,9 @@ const std = @import("std");
 const astroids = @import("astroids");
 const rl = @import("raylib");
 
+const screenWidth = 900;
+const screenHeight = 600;
+
 const Vec2_i32 = struct {
     x: f32,
     y: f32,
@@ -173,7 +176,53 @@ const SpaceShip = struct {
         }
     }
 
-    fn shoot() void {}
+    fn shoot(self: SpaceShip) Bullet {
+        const h_half = @as(f32, @floatFromInt(height)) / 2.0;
+
+        const cos_rot = @cos(self.Rot);
+        const sin_rot = @sin(self.Rot);
+
+        const tip_dx = (0.0 * cos_rot) - (-h_half * sin_rot);
+        const tip_dy = (0.0 * sin_rot) + (-h_half * cos_rot);
+
+        const tip = Vec2_i32{
+            .x = self.PosX + tip_dx,
+            .y = self.PosY + tip_dy,
+        };
+
+        return Bullet{
+            .PosX = tip.x,
+            .PosY = tip.y,
+            .Rot = self.Rot,
+        };
+    }
+};
+
+const Bullet = struct {
+    PosX: f32,
+    PosY: f32,
+    Rot: f32,
+
+    const length = 40;
+    const Velocity = 20;
+
+    fn draw(self: Bullet) void {
+        const cos_rot = @cos(self.Rot);
+        const sin_rot = @sin(self.Rot);
+        const end_x = self.PosX - (sin_rot * length);
+        const end_y = self.PosY + (cos_rot * length);
+        rl.drawLine(@round(self.PosX), @round(self.PosY), @round(end_x), @round(end_y), .white);
+    }
+
+    fn shoot(self: *Bullet) void {
+        const cos_rot = @cos(self.Rot);
+        const sin_rot = @sin(self.Rot);
+        const dx = sin_rot * Velocity;
+        const dy = cos_rot * Velocity;
+        self.PosX += dx;
+        self.PosY -= dy;
+        self.draw();
+    }
 };
 
 const Star = struct {
@@ -186,9 +235,6 @@ pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer arena.deinit();
     const allocator = arena.allocator();
-
-    const screenWidth = 900;
-    const screenHeight = 600;
 
     rl.setConfigFlags(.{ .msaa_4x_hint = true });
     rl.initWindow(screenWidth, screenHeight, "Astroids");
@@ -215,6 +261,7 @@ pub fn main() !void {
         const rand: f32 = @floatFromInt(rl.getRandomValue(8, 12));
         star.size = rand / 10;
     }
+    var bullet: ?Bullet = null;
 
     while (!rl.windowShouldClose()) {
         defer _ = arena.reset(.retain_capacity);
@@ -225,6 +272,17 @@ pub fn main() !void {
         rl.clearBackground(.black);
         for (stars) |star| {
             rl.drawCircle(star.x, star.y, star.size, .white);
+        }
+        if (rl.isKeyPressed(.space)) {
+            if (bullet == null) {
+                bullet = spaceship.shoot();
+            }
+        }
+        if (bullet != null) {
+            bullet.?.shoot();
+            if (bullet.?.PosX > screenWidth or bullet.?.PosY > screenHeight or bullet.?.PosX < 0 or bullet.?.PosY < 0) {
+                bullet = null;
+            }
         }
 
         if (rl.isKeyDown(.right)) {
@@ -244,6 +302,8 @@ pub fn main() !void {
         info = try std.fmt.allocPrintSentinel(allocator, "fps : {d:0>3} screen : {d}x{d}", .{ fps, screenWidth, screenHeight }, 0);
         rl.drawText(info, 5, 5, 10, .red);
         info = try std.fmt.allocPrintSentinel(allocator, "Velocity : {} rot : {}", .{ spaceship.CurrentVelocity, spaceship.Rot }, 0);
-        rl.drawText(info, 5, 20, 10, .red);
+        rl.drawText(info, 5, 25, 10, .red);
+        info = try std.fmt.allocPrintSentinel(allocator, "Bullet : {?} ", .{bullet}, 0);
+        rl.drawText(info, 5, 45, 10, .red);
     }
 }
