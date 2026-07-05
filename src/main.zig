@@ -91,6 +91,10 @@ const SpaceShip = struct {
         rl.drawLine(@round(back_l.x), @round(back_l.y), @round(back_r.x), @round(back_r.y), .white);
     }
 
+    fn inScreen(self: SpaceShip) bool {
+        return (self.PosX <= screenWidth and self.PosX >= 0 and self.PosY >= 0 and self.PosY <= screenHeight);
+    }
+
     fn drawBoosters(self: SpaceShip) void {
         const w_half = @as(f32, @floatFromInt(width)) / 2.0;
         const h_half = @as(f32, @floatFromInt(height)) / 2.0;
@@ -155,8 +159,15 @@ const SpaceShip = struct {
         const dx = sin_rot * self.CurrentVelocity;
         const dy = cos_rot * self.CurrentVelocity;
 
-        self.PosX += dx;
-        self.PosY -= dy;
+        if (self.inScreen()) {
+            self.PosX += dx;
+            self.PosY -= dy;
+        } else {
+            if (self.PosX > screenWidth) self.PosX = 0;
+            if (self.PosX < 0) self.PosX = screenWidth;
+            if (self.PosY > screenHeight) self.PosY = 0;
+            if (self.PosY < 0) self.PosY = screenHeight;
+        }
     }
 
     fn deAccelerate(self: *SpaceShip) void {
@@ -171,8 +182,15 @@ const SpaceShip = struct {
             const dx = sin_rot * self.CurrentVelocity;
             const dy = cos_rot * self.CurrentVelocity;
 
-            self.PosX += dx;
-            self.PosY -= dy;
+            if (self.inScreen()) {
+                self.PosX += dx;
+                self.PosY -= dy;
+            } else {
+                if (self.PosX > screenWidth) self.PosX = 0;
+                if (self.PosX < 0) self.PosX = screenWidth;
+                if (self.PosY > screenHeight) self.PosY = 0;
+                if (self.PosY < 0) self.PosY = screenWidth;
+            }
         }
     }
 
@@ -214,14 +232,13 @@ const Bullet = struct {
         rl.drawLine(@round(self.PosX), @round(self.PosY), @round(end_x), @round(end_y), .white);
     }
 
-    fn shoot(self: *Bullet) void {
+    fn move(self: *Bullet) void {
         const cos_rot = @cos(self.Rot);
         const sin_rot = @sin(self.Rot);
         const dx = sin_rot * Velocity;
         const dy = cos_rot * Velocity;
         self.PosX += dx;
         self.PosY -= dy;
-        self.draw();
     }
 };
 
@@ -261,7 +278,9 @@ pub fn main() !void {
         const rand: f32 = @floatFromInt(rl.getRandomValue(8, 12));
         star.size = rand / 10;
     }
-    var bullet: ?Bullet = null;
+
+    var bullets = std.ArrayList(Bullet).empty;
+    defer bullets.deinit(allocator);
 
     while (!rl.windowShouldClose()) {
         defer _ = arena.reset(.retain_capacity);
@@ -270,19 +289,17 @@ pub fn main() !void {
         defer rl.endDrawing();
         fps = rl.getFPS();
         rl.clearBackground(.black);
+
         for (stars) |star| {
             rl.drawCircle(star.x, star.y, star.size, .white);
         }
+
         if (rl.isKeyPressed(.space)) {
-            if (bullet == null) {
-                bullet = spaceship.shoot();
-            }
+            try bullets.append(allocator, spaceship.shoot());
         }
-        if (bullet != null) {
-            bullet.?.shoot();
-            if (bullet.?.PosX > screenWidth or bullet.?.PosY > screenHeight or bullet.?.PosX < 0 or bullet.?.PosY < 0) {
-                bullet = null;
-            }
+        for (bullets.items) |*bullet| {
+            bullet.move();
+            bullet.draw();
         }
 
         if (rl.isKeyDown(.right)) {
@@ -303,7 +320,7 @@ pub fn main() !void {
         rl.drawText(info, 5, 5, 10, .red);
         info = try std.fmt.allocPrintSentinel(allocator, "Velocity : {} rot : {}", .{ spaceship.CurrentVelocity, spaceship.Rot }, 0);
         rl.drawText(info, 5, 25, 10, .red);
-        info = try std.fmt.allocPrintSentinel(allocator, "Bullet : {?} ", .{bullet}, 0);
+        info = try std.fmt.allocPrintSentinel(allocator, "x : {} y : {}", .{ spaceship.PosX, spaceship.PosY }, 0);
         rl.drawText(info, 5, 45, 10, .red);
     }
 }
