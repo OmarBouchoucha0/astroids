@@ -13,6 +13,7 @@ pub fn build(b: *std.Build) void {
         .root_source_file = b.path("src/root.zig"),
         .target = target,
     });
+    const use_llvm = b.option(bool, "use-llvm", "Force LLVM backend for debugger support") orelse false;
 
     const exe = b.addExecutable(.{
         .name = "astroids",
@@ -25,6 +26,11 @@ pub fn build(b: *std.Build) void {
             },
         }),
     });
+
+    if (use_llvm) {
+        exe.use_llvm = true;
+        exe.use_lld = true;
+    }
 
     const raylib_dep = b.dependency("raylib_zig", .{
         .target = target,
