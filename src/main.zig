@@ -189,7 +189,7 @@ const SpaceShip = struct {
                 if (self.PosX > screenWidth) self.PosX = 0;
                 if (self.PosX < 0) self.PosX = screenWidth;
                 if (self.PosY > screenHeight) self.PosY = 0;
-                if (self.PosY < 0) self.PosY = screenWidth;
+                if (self.PosY < 0) self.PosY = screenHeight;
             }
         }
     }
@@ -204,8 +204,8 @@ const SpaceShip = struct {
         const tip_dy = (0.0 * sin_rot) + (-h_half * cos_rot);
 
         const tip = Vec2_i32{
-            .x = self.PosX + tip_dx,
-            .y = self.PosY + tip_dy,
+            .x = self.PosX + 2 * tip_dx,
+            .y = self.PosY + 2 * tip_dy,
         };
 
         return Bullet{
@@ -240,6 +240,10 @@ const Bullet = struct {
         self.PosX += dx;
         self.PosY -= dy;
     }
+
+    fn inScreen(self: Bullet) bool {
+        return (self.PosX <= screenWidth and self.PosX >= 0 and self.PosY >= 0 and self.PosY <= screenHeight);
+    }
 };
 
 const Star = struct {
@@ -247,6 +251,13 @@ const Star = struct {
     y: i32,
     size: f32,
 };
+
+fn removeBullet(bullets: []Bullet, nBullets: *usize, index: usize) void {
+    for (index..nBullets.*) |i| {
+        bullets[i] = bullets[i + 1];
+    }
+    nBullets.* -= 1;
+}
 
 pub fn main() !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
@@ -279,8 +290,8 @@ pub fn main() !void {
         star.size = rand / 10;
     }
 
-    var bullets = std.ArrayList(Bullet).empty;
-    defer bullets.deinit(allocator);
+    var bullets: [100]Bullet = undefined;
+    var nBullets: usize = 0;
 
     while (!rl.windowShouldClose()) {
         defer _ = arena.reset(.retain_capacity);
@@ -295,11 +306,15 @@ pub fn main() !void {
         }
 
         if (rl.isKeyPressed(.space)) {
-            try bullets.append(allocator, spaceship.shoot());
+            bullets[nBullets] = spaceship.shoot();
+            nBullets += 1;
         }
-        for (bullets.items) |*bullet| {
-            bullet.move();
-            bullet.draw();
+        for (0..nBullets) |i| {
+            bullets[i].move();
+            bullets[i].draw();
+            if (!bullets[i].inScreen()) {
+                removeBullet(&bullets, &nBullets, i);
+            }
         }
 
         if (rl.isKeyDown(.right)) {
@@ -322,5 +337,11 @@ pub fn main() !void {
         rl.drawText(info, 5, 25, 10, .red);
         info = try std.fmt.allocPrintSentinel(allocator, "x : {} y : {}", .{ spaceship.PosX, spaceship.PosY }, 0);
         rl.drawText(info, 5, 45, 10, .red);
+
+        for (0..nBullets) |i| {
+            info = try std.fmt.allocPrintSentinel(allocator, "bullet n:{} PosX: {}  PosY: {}", .{ i, bullets[i].PosX, bullets[i].PosY }, 0);
+            const i_32: i32 = @intCast(i);
+            rl.drawText(info, 5, 65 + i_32 * 20, 10, .red);
+        }
     }
 }
