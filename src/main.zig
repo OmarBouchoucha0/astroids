@@ -4,6 +4,7 @@ const rl = @import("raylib");
 
 const screenWidth = 900;
 const screenHeight = 600;
+const pi = 3.14;
 
 const Vec2_i32 = struct {
     x: f32,
@@ -204,8 +205,8 @@ const SpaceShip = struct {
         const tip_dy = (0.0 * sin_rot) + (-h_half * cos_rot);
 
         const tip = Vec2_i32{
-            .x = self.PosX + 2 * tip_dx,
-            .y = self.PosY + 2 * tip_dy,
+            .x = self.PosX + 1.5 * tip_dx,
+            .y = self.PosY + 1.5 * tip_dy,
         };
 
         return Bullet{
@@ -221,7 +222,7 @@ const Bullet = struct {
     PosY: f32,
     Rot: f32,
 
-    const length = 40;
+    const length = 20;
     const Velocity = 20;
 
     fn draw(self: Bullet) void {
@@ -229,7 +230,17 @@ const Bullet = struct {
         const sin_rot = @sin(self.Rot);
         const end_x = self.PosX - (sin_rot * length);
         const end_y = self.PosY + (cos_rot * length);
-        rl.drawLine(@round(self.PosX), @round(self.PosY), @round(end_x), @round(end_y), .white);
+        const startPos = rl.Vector2{
+            .x = self.PosX,
+            .y = self.PosY,
+        };
+
+        const endPos = rl.Vector2{
+            .x = end_x,
+            .y = end_y,
+        };
+        const thicc: f32 = 2;
+        rl.drawLineEx(startPos, endPos, thicc, .white);
     }
 
     fn move(self: *Bullet) void {
@@ -242,7 +253,11 @@ const Bullet = struct {
     }
 
     fn inScreen(self: Bullet) bool {
-        return (self.PosX <= screenWidth and self.PosX >= 0 and self.PosY >= 0 and self.PosY <= screenHeight);
+        const top = 0 - 100;
+        const bottom = screenHeight + 100;
+        const left = 0 - 100;
+        const right = screenWidth + 100;
+        return (self.PosX <= right and self.PosX >= left and self.PosY >= top and self.PosY <= bottom);
     }
 };
 
@@ -253,7 +268,7 @@ const Star = struct {
 };
 
 fn removeBullet(bullets: []Bullet, nBullets: *usize, index: usize) void {
-    for (index..nBullets.*) |i| {
+    for (index..nBullets.* - 1) |i| {
         bullets[i] = bullets[i + 1];
     }
     nBullets.* -= 1;
@@ -276,7 +291,7 @@ pub fn main() !void {
         .PosX = screenWidth / 2,
         .PosY = screenHeight / 2,
         .Rot = 0,
-        .MaxVelocity = 5,
+        .MaxVelocity = 8,
         .CurrentVelocity = 0,
         .Acceleration = 1.05,
     };
@@ -292,10 +307,16 @@ pub fn main() !void {
 
     var bullets: [100]Bullet = undefined;
     var nBullets: usize = 0;
+    const coolDown: f32 = 0.15;
+    var elapsedTime: f32 = coolDown;
 
     while (!rl.windowShouldClose()) {
         defer _ = arena.reset(.retain_capacity);
 
+        const dt = rl.getFrameTime();
+        if (elapsedTime < coolDown) {
+            elapsedTime += dt;
+        }
         rl.beginDrawing();
         defer rl.endDrawing();
         fps = rl.getFPS();
@@ -305,25 +326,29 @@ pub fn main() !void {
             rl.drawCircle(star.x, star.y, star.size, .white);
         }
 
-        if (rl.isKeyPressed(.space)) {
-            bullets[nBullets] = spaceship.shoot();
-            nBullets += 1;
+        if (rl.isKeyDown(.space)) {
+            if (elapsedTime >= coolDown) {
+                bullets[nBullets] = spaceship.shoot();
+                nBullets += 1;
+                elapsedTime = 0;
+            }
         }
         for (0..nBullets) |i| {
-            bullets[i].move();
-            bullets[i].draw();
-            if (!bullets[i].inScreen()) {
+            if (bullets[i].inScreen()) {
+                bullets[i].move();
+                bullets[i].draw();
+            } else {
                 removeBullet(&bullets, &nBullets, i);
             }
         }
 
-        if (rl.isKeyDown(.right)) {
+        if (rl.isKeyDown(.right) or rl.isKeyDown(.d)) {
             spaceship.rotate("clockWise");
         }
-        if (rl.isKeyDown(.left)) {
+        if (rl.isKeyDown(.left) or rl.isKeyDown(.a)) {
             spaceship.rotate("counterClockWise");
         }
-        if (rl.isKeyDown(.up)) {
+        if (rl.isKeyDown(.up) or rl.isKeyDown(.w)) {
             spaceship.fly();
             spaceship.drawBoosters();
         } else {
@@ -333,7 +358,7 @@ pub fn main() !void {
 
         info = try std.fmt.allocPrintSentinel(allocator, "fps : {d:0>3} screen : {d}x{d}", .{ fps, screenWidth, screenHeight }, 0);
         rl.drawText(info, 5, 5, 10, .red);
-        info = try std.fmt.allocPrintSentinel(allocator, "Velocity : {} rot : {}", .{ spaceship.CurrentVelocity, spaceship.Rot }, 0);
+        info = try std.fmt.allocPrintSentinel(allocator, "Velocity : {} rot : {}", .{ spaceship.CurrentVelocity, spaceship.Rot / pi * 180 }, 0);
         rl.drawText(info, 5, 25, 10, .red);
         info = try std.fmt.allocPrintSentinel(allocator, "x : {} y : {}", .{ spaceship.PosX, spaceship.PosY }, 0);
         rl.drawText(info, 5, 45, 10, .red);
