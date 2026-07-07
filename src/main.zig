@@ -1,5 +1,4 @@
 const std = @import("std");
-const astroids = @import("astroids");
 const rl = @import("raylib");
 
 const screenWidth = 900;
@@ -9,18 +8,6 @@ const pi = 3.14;
 const Vec2_i32 = struct {
     x: f32,
     y: f32,
-};
-
-const Circle = struct {
-    x: i32,
-    y: i32,
-    raduis: f32,
-};
-
-const Triangle = struct {
-    v1: rl.Vector2,
-    v2: rl.Vector2,
-    v3: rl.Vector2,
 };
 
 const SpaceShip = struct {
@@ -86,6 +73,22 @@ const SpaceShip = struct {
             .x = self.PosX + back_r_dx,
             .y = self.PosY + back_r_dy,
         };
+
+        const v1 = rl.Vector2{
+            .x = tip.x,
+            .y = tip.y,
+        };
+
+        const v2 = rl.Vector2{
+            .x = back_l.x,
+            .y = back_l.y,
+        };
+
+        const v3 = rl.Vector2{
+            .x = back_r.x,
+            .y = back_r.y,
+        };
+        rl.drawTriangle(v1, v2, v3, .black);
 
         rl.drawLine(@round(tip.x), @round(tip.y), @round(bottom_l.x), @round(bottom_l.y), .white);
         rl.drawLine(@round(tip.x), @round(tip.y), @round(bottom_r.x), @round(bottom_r.y), .white);
@@ -261,6 +264,39 @@ const Bullet = struct {
     }
 };
 
+const Astroid = struct {
+    PosX: f32,
+    PosY: f32,
+    Rot: f32,
+    raduis: f32,
+    const maxVelocity = 3;
+    fn draw(self: Astroid) void {
+        rl.drawCircle(@intFromFloat(self.PosX), @intFromFloat(self.PosY), self.raduis, .black);
+        rl.drawCircleLines(@intFromFloat(self.PosX), @intFromFloat(self.PosY), self.raduis, .white);
+    }
+
+    fn move(self: *Astroid) void {
+        var Velocity = 100 / self.raduis;
+        if (Velocity > maxVelocity) {
+            Velocity = maxVelocity;
+        }
+        const cos_rot = @cos(self.Rot);
+        const sin_rot = @sin(self.Rot);
+        const dx = sin_rot * Velocity;
+        const dy = cos_rot * Velocity;
+        self.PosX += dx;
+        self.PosY -= dy;
+    }
+
+    fn inScreen(self: Astroid) bool {
+        const top = 0 - 500;
+        const bottom = screenHeight + 500;
+        const left = 0 - 500;
+        const right = screenWidth + 500;
+        return (self.PosX <= right and self.PosX >= left and self.PosY >= top and self.PosY <= bottom);
+    }
+};
+
 const Star = struct {
     x: i32,
     y: i32,
@@ -268,10 +304,66 @@ const Star = struct {
 };
 
 fn removeBullet(bullets: []Bullet, nBullets: *usize, index: usize) void {
-    for (index..nBullets.* - 1) |i| {
-        bullets[i] = bullets[i + 1];
-    }
+    bullets[index] = bullets[nBullets.* - 1];
     nBullets.* -= 1;
+}
+
+fn getRandomFloat(min: f32, max: f32) f32 {
+    const r = @as(f32, @floatFromInt(rl.getRandomValue(0, 10000)));
+    return min + (r / 10000.0) * (max - min);
+}
+
+fn randomAstroid() Astroid {
+    var x: f32 = 0;
+    var y: f32 = 0;
+    var rot: f32 = 0;
+    var raduis: f32 = 0;
+
+    const edge = rl.getRandomValue(0, 3);
+
+    switch (edge) {
+        0 => {
+            x = @floatFromInt(rl.getRandomValue(200, screenWidth - 200));
+            y = @floatFromInt(rl.getRandomValue(-500, 0));
+            rot = getRandomFloat(5.0 * pi / 6.0, 7.0 * pi / 6.0);
+        },
+        1 => {
+            x = @floatFromInt(rl.getRandomValue(200, screenWidth - 200));
+            y = @floatFromInt(rl.getRandomValue(screenHeight, screenHeight + 500));
+            rot = getRandomFloat(-pi / 6.0, pi / 6.0);
+        },
+        2 => {
+            x = @floatFromInt(rl.getRandomValue(-500, 0));
+            y = @floatFromInt(rl.getRandomValue(200, screenHeight - 200));
+            rot = getRandomFloat(pi / 3.0, 2.0 * pi / 3.0);
+        },
+        3 => {
+            x = @floatFromInt(rl.getRandomValue(screenWidth, screenWidth + 500));
+            y = @floatFromInt(rl.getRandomValue(200, screenHeight - 200));
+            rot = getRandomFloat(4.0 * pi / 3.0, 5.0 * pi / 3.0);
+        },
+        else => unreachable,
+    }
+    const size_choice = rl.getRandomValue(0, 2);
+
+    switch (size_choice) {
+        0 => {
+            raduis = 20.0;
+        },
+        1 => {
+            raduis = 40.0;
+        },
+        2 => {
+            raduis = 60.0;
+        },
+        else => unreachable,
+    }
+    return Astroid{
+        .PosX = x,
+        .PosY = y,
+        .raduis = raduis,
+        .Rot = rot,
+    };
 }
 
 pub fn main() !void {
@@ -310,6 +402,12 @@ pub fn main() !void {
     const coolDown: f32 = 0.15;
     var elapsedTime: f32 = coolDown;
 
+    const MAX_ASTROIDS = 10;
+    var astroids: [MAX_ASTROIDS]Astroid = undefined;
+    for (&astroids) |*astroid| {
+        astroid.* = randomAstroid();
+    }
+
     while (!rl.windowShouldClose()) {
         defer _ = arena.reset(.retain_capacity);
 
@@ -326,6 +424,15 @@ pub fn main() !void {
             rl.drawCircle(star.x, star.y, star.size, .white);
         }
 
+        for (&astroids) |*astroid| {
+            if (astroid.inScreen()) {
+                astroid.draw();
+                astroid.move();
+            } else {
+                astroid.* = randomAstroid();
+            }
+        }
+
         if (rl.isKeyDown(.space)) {
             if (elapsedTime >= coolDown) {
                 bullets[nBullets] = spaceship.shoot();
@@ -333,12 +440,14 @@ pub fn main() !void {
                 elapsedTime = 0;
             }
         }
-        for (0..nBullets) |i| {
-            if (bullets[i].inScreen()) {
-                bullets[i].move();
-                bullets[i].draw();
+        var bullet_i: usize = 0;
+        while (bullet_i < nBullets) {
+            if (bullets[bullet_i].inScreen()) {
+                bullets[bullet_i].move();
+                bullets[bullet_i].draw();
+                bullet_i += 1;
             } else {
-                removeBullet(&bullets, &nBullets, i);
+                removeBullet(&bullets, &nBullets, bullet_i);
             }
         }
 
